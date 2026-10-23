@@ -1,0 +1,26 @@
+{
+  "name": "prediksi-stok-mbg-sppg",
+  "version": "1.0.0",
+  "description": "Sistem Prediksi Persediaan Stok Bahan Makanan MBG — Metode Holt — SPPG Kecamatan Tanggetada",
+  "type": "module",
+  "scripts": {
+    "dev": "node server/index.mjs",
+    "build": "vite build web",
+    "start": "node server/index.mjs"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.3.0",
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.5"
+  }
+}
