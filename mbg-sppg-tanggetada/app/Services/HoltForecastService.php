@@ -103,6 +103,7 @@ class HoltForecastService
             'reorder_point' => round($reorderPoint, 3),
             'recommended_purchase' => round($recommendedPurchase, 3),
             'lead_time_weeks' => round($leadTimeWeeks, 2),
+            'training_periods' => $best['training_periods'],
             'validation_periods' => $best['validation_periods'],
             'notes' => sprintf(
                 'Parameter dipilih dengan RMSE terkecil pada %d periode uji. Model dilatih ulang dengan seluruh data untuk prediksi.',
@@ -137,7 +138,7 @@ class HoltForecastService
 
     /**
      * @param  array<int, float>  $values
-     * @return array{alpha: float, beta: float, mape: float|null, mae: float, rmse: float, validation_periods: int}
+     * @return array{alpha: float, beta: float, mape: float|null, mae: float, rmse: float, training_periods: int, validation_periods: int}
      */
     private function findBestParameters(array $values): array
     {
@@ -152,9 +153,11 @@ class HoltForecastService
 
         $best = null;
 
-        for ($alpha = 0.01; $alpha <= 0.99; $alpha += 0.01) {
-            for ($beta = 0.01; $beta <= 0.99; $beta += 0.01) {
-                $metrics = $this->evaluate($train, $validation, round($alpha, 2), round($beta, 2));
+        for ($alphaStep = 1; $alphaStep <= 99; $alphaStep++) {
+            for ($betaStep = 1; $betaStep <= 99; $betaStep++) {
+                $alpha = $alphaStep / 100;
+                $beta = $betaStep / 100;
+                $metrics = $this->evaluate($train, $validation, $alpha, $beta);
 
                 if (
                     $best === null
@@ -165,11 +168,12 @@ class HoltForecastService
                     )
                 ) {
                     $best = [
-                        'alpha' => round($alpha, 2),
-                        'beta' => round($beta, 2),
+                        'alpha' => $alpha,
+                        'beta' => $beta,
                         'mape' => $metrics['mape'],
                         'mae' => $metrics['mae'],
                         'rmse' => $metrics['rmse'],
+                        'training_periods' => $trainCount,
                         'validation_periods' => $validationPeriods,
                     ];
                 }

@@ -407,3 +407,171 @@ function Riwayat({ bahan }) {
     </div>
   );
 }
+
+/* ---------- Prediksi Holt ---------- */
+function Prediksi({ bahan }) {
+  const [bahanId, setBahanId] = useState('');
+  const [alpha, setAlpha] = useState(0.3);
+  const [beta, setBeta] = useState(0.2);
+  const [hasil, setHasil] = useState(null);
+  const [optim, setOptim] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const b = bahan.find(x => x.id === +bahanId);
+
+  const hitung = async () => {
+    if (!bahanId) return alert('Pilih bahan makanan dulu');
+    setLoading(true);
+    try {
+      const r = await api('/prediksi', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bahanId: +bahanId, alpha: +alpha, beta: +beta }),
+      });
+      if (r.error) alert(r.error); else setHasil(r);
+    } finally { setLoading(false); }
+  };
+  const auto = async () => {
+    if (!bahanId) return alert('Pilih bahan makanan dulu');
+    const r = await api(`/prediksi/optimize/${bahanId}`);
+    if (r.error) return alert(r.error);
+    setOptim(r); setAlpha(r.alpha); setBeta(r.beta);
+  };
+
+  const chartData = hasil ? hasil.detail.map(d => ({
+    periode: d.periode.slice(5), Aktual: d.yt, Prediksi: d.ft == null ? null : Math.round(d.ft * 10) / 10,
+  })) : [];
+  const kebutuhan = hasil ? Math.round(hasil.forecastNext) : 0;
+  const beli = b ? Math.max(0, Math.round(kebutuhan - b.stok_saat_ini)) : 0;
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Prediksi Persediaan — Double Exponential Smoothing (Holt)</h1>
+      <Card title="Parameter Peramalan">
+        <div className="grid grid-cols-4 gap-4 items-end">
+          <label className="block text-sm">
+            <span className="mb-1 block text-slate-400">Bahan Makanan</span>
+            <select value={bahanId} onChange={e => { setBahanId(e.target.value); setHasil(null); setOptim(null); }} className={inp()}>
+              <option value="">-- Pilih bahan --</option>
+              {bahan.map(x => <option key={x.id} value={x.id}>{x.nama}</option>)}
+            </select>
+          </label>
+          <Slider label="Alpha (α)" v={alpha} set={setAlpha} hint={optim ? 'hasil optimasi' : ''} />
+          <Slider label="Beta (β)" v={beta} set={setBeta} hint={optim ? 'hasil optimasi' : ''} />
+          <div className="flex gap-2">
+            <button onClick={hitung} disabled={loading}
+              className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-50">
+              <TrendingUp size={15} /> {loading ? 'Menghitung...' : 'Hitung Prediksi'}
+            </button>
+            <button onClick={auto} title="Cari kombinasi α, β dengan MAPE terkecil"
+              className="flex items-center gap-2 rounded-lg border border-amber-500/50 px-3 py-2 text-sm text-amber-400 hover:bg-amber-500/10">
+              <Wand2 size={15} /> Auto
+            </button>
+          </div>
+        </div>
+        {optim && <p className="mt-2 text-xs text-emerald-400">α & β optimal ditemukan: α={optim.alpha}, β={optim.beta} (MAPE {optim.mape.toFixed(2)}%). Parameter slider sudah diperbarui — klik “Hitung Prediksi”.</p>}
+      </Card>
+
+      {hasil && (
+        <>
+          <div className="grid grid-cols-4 gap-4">
+            <Card title={`Forecast ${hasil.detail.at(-1).periode} + 7 hari`}>
+              <p className="text-3xl font-bold text-amber-400">{kebutuhan} <span className="text-base text-slate-400">{b?.satuan}</span></p>
+            </Card>
+            <Card title="MAPE (Kesalahan Rata-rata)">
+              <p className={`text-3xl font-bold ${hasil.mape < 10 ? 'text-emerald-400' : hasil.mape < 20 ? 'text-amber-400' : 'text-red-400'}`}>
+                {hasil.mape.toFixed(2)}%</p>
+              <p className="mt-1 text-xs text-slate-500">Ketepatan {Math.max(0, 100 - hasil.mape).toFixed(2)}%</p>
+            </Card>
+            <Card title="MPE (Bias Kesalahan)">
+              <p className="text-3xl font-bold text-sky-400">{hasil.mpe.toFixed(2)}%</p>
+            </Card>
+            <Card title="Rekomendasi Pengadaan">
+              <p className="text-3xl font-bold text-emerald-400">{beli} <span className="text-base text-slate-400">{b?.satuan}</span></p>
+              <p className="mt-1 text-xs text-slate-500">stok saat ini {fmt(b?.stok_saat_ini)} — beli agar aman untuk periode berikutnya</p>
+            </Card>
+          </div>
+          <Card title="Grafik: Aktual vs Prediksi (Data Historis Pemakaian Mingguan)">
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="periode" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155' }} />
+                <Legend />
+                <Line type="monotone" dataKey="Aktual" stroke="#38bdf8" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Prediksi" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 3" dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Card>
+          <Card title="Tabel Perhitungan Step-by-Step (Lt, Tt, Ft, PE)">
+            <div className="max-h-96 overflow-auto">
+              <table className="w-full">
+                <thead className="sticky top-0 bg-slate-900"><tr>
+                  <Th>t</Th><Th>Periode</Th><Th className="text-right">Yt (Aktual)</Th>
+                  <Th className="text-right">Lt (Level)</Th><Th className="text-right">Tt (Trend)</Th>
+                  <Th className="text-right">Ft (Forecast)</Th><Th className="text-right">PE (%)</Th>
+                </tr></thead>
+                <tbody>{hasil.detail.map(d => (
+                  <tr key={d.t} className="border-b border-slate-800 last:border-0">
+                    <Td className="text-slate-500">{d.t}</Td>
+                    <Td className="text-slate-400">{d.periode}</Td>
+                    <Td className="text-right">{fmt(d.yt)}</Td>
+                    <Td className="text-right text-slate-300">{fmt(d.lt)}</Td>
+                    <Td className="text-right text-slate-300">{fmt(d.tt)}</Td>
+                    <Td className="text-right text-amber-400">{d.ft == null ? '-' : fmt(d.ft)}</Td>
+                    <Td className={`text-right ${d.pe != null && Math.abs(d.pe) > 10 ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {d.pe == null ? '-' : d.pe.toFixed(2)}</Td>
+                  </tr>))}</tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+const Slider = ({ label, v, set, hint }) => (
+  <label className="block text-sm">
+    <span className="mb-1 flex items-center justify-between text-slate-400">
+      {label} <span className="font-mono text-amber-400">{Number(v).toFixed(2)}</span>
+      {hint && <span className="text-[10px] text-emerald-400">{hint}</span>}
+    </span>
+    <input type="range" min="0.01" max="0.99" step="0.01" value={v}
+      onChange={e => set(+e.target.value)} className="w-full accent-amber-500" />
+  </label>
+);
+
+/* ---------- Riwayat ---------- */
+function Riwayat({ bahan }) {
+  const [list, setList] = useState([]);
+  const [bahanId, setBahanId] = useState('');
+  useEffect(() => { api('/prediksi' + (bahanId ? '?bahanId=' + bahanId : '')).then(setList); }, [bahanId]);
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Riwayat Prediksi</h1>
+        <select value={bahanId} onChange={e => setBahanId(e.target.value)} className={inp() + ' w-64'}>
+          <option value="">Semua bahan</option>
+          {bahan.map(b => <option key={b.id} value={b.id}>{b.nama}</option>)}
+        </select>
+      </div>
+      <Card>
+        {list.length === 0 ? <p className="text-sm text-slate-400">Belum ada prediksi tersimpan.</p> :
+          <table className="w-full">
+            <thead><tr><Th>Waktu Hitung</Th><Th>Bahan</Th><Th>α</Th><Th>β</Th><Th>Periode Forecast</Th>
+              <Th className="text-right">Forecast</Th><Th className="text-right">MAPE</Th></tr></thead>
+            <tbody>{list.map(p => (
+              <tr key={p.id} className="border-b border-slate-800 last:border-0">
+                <Td className="text-slate-500">{p.created_at}</Td>
+                <Td className="font-medium">{p.nama_bahan}</Td>
+                <Td className="font-mono text-sky-400">{p.alpha}</Td>
+                <Td className="font-mono text-sky-400">{p.beta}</Td>
+                <Td className="text-slate-400">{p.periode}</Td>
+                <Td className="text-right font-semibold text-amber-400">{fmt(p.forecast_next)} {p.satuan}</Td>
+                <Td className="text-right text-emerald-400">{Number(p.mape).toFixed(2)}%</Td>
+              </tr>))}</tbody>
+          </table>}
+      </Card>
+    </div>
+  );
+}

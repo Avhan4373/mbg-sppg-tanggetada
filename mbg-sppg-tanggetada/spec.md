@@ -490,30 +490,34 @@ Menampilkan:
 
 ## 13. Arsitektur dan Stack
 
-### 13.1 Usulan awal
+### 13.1 Stack terpilih
 
 - **Backend:** Laravel 12
-- **Panel admin:** Filament 4
-- **Database:** MySQL 8
-- **Frontend:** Blade + Livewire
-- **Grafik:** Chart.js
-- **PDF:** DomPDF
-- **Excel:** Laravel Excel
-- **Testing:** PHPUnit / Pest
+- **Database:** SQLite (mudah dipindah ke MySQL/PostgreSQL)
+- **Frontend:** Blade + CSS kustom (tanpa framework UI, tanpa build step)
+- **Grafik:** Chart.js (aset lokal di `public/js/`)
+- **Testing:** PHPUnit
+
+Panel admin **tidak** memakai Filament. Seluruh tampilan memakai Blade
+dengan CSS terpusat agar tema mudah diganti cukup lewat CSS variable.
 
 ### 13.2 Struktur komponen
 
 - `HoltForecastService` — perhitungan level, trend, forecast, dan evaluasi.
-- `ParameterSearchService` — pencarian α dan β.
-- `InventoryRecommendationService` — safety stock, ROP, dan saran pembelian.
-- `ForecastRunRepository` — penyimpanan riwayat prediksi.
-- Halaman Filament — CRUD dan tampilan hasil.
+- `ForecastRunner` — agregasi pemakaian mingguan dan penyimpanan hasil.
+- `PredictionController` — formulir publik dan halaman penjelasan hasil.
+- Controller `Admin\*` — CRUD master data, transaksi, dan riwayat prediksi.
+- `NumberFormat` — format angka, mata uang, dan tanggal Indonesia.
+- Halaman prediksi publik di `/` — dapat diakses tanpa login dan menjadi
+  halaman utama situs.
+- Halaman panduan metode di `/panduan`.
 
-Perhitungan metode Holt harus berada di kelas service tersendiri dan diuji dengan unit test, tidak ditulis langsung di controller atau halaman tampilan.
+Perhitungan metode Holt berada di kelas service tersendiri dan diuji dengan
+unit/feature test, tidak ditulis langsung di controller atau halaman tampilan.
 
 ### 13.3 Catatan
 
-Stack di atas merupakan usulan default. Jika pengguna memiliki preferensi lain, spesifikasi fungsional dan metode tetap berlaku.
+Spesifikasi fungsional dan metode tetap berlaku bila stack teknis disesuaikan.
 
 ---
 
@@ -578,7 +582,7 @@ Stack di atas merupakan usulan default. Jika pengguna memiliki preferensi lain, 
 
 ## 17. Pertanyaan Terbuka
 
-1. Stack final: Laravel + Filament, atau stack lain?
+1. ~~Stack final: Laravel + Filament, atau stack lain?~~ **Terjawab:** Laravel 12 + Blade + CSS kustom + SQLite, tanpa Filament.
 2. Apakah data pemakaian bahan sudah tersedia? Jika belum, apakah boleh memakai data dummy?
 3. Periode prediksi yang diinginkan: mingguan, harian, atau bulanan?
 4. Berapa jumlah porsi dan siklus menu yang biasa dijalankan?

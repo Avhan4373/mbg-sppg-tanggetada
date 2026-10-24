@@ -18,6 +18,8 @@ class ForecastRun extends Model
         'start_date',
         'end_date',
         'horizon',
+        'training_periods',
+        'validation_periods',
         'alpha',
         'beta',
         'mape',
@@ -40,6 +42,8 @@ class ForecastRun extends Model
             'start_date' => 'date',
             'end_date' => 'date',
             'horizon' => 'integer',
+            'training_periods' => 'integer',
+            'validation_periods' => 'integer',
             'alpha' => 'decimal:4',
             'beta' => 'decimal:4',
             'mape' => 'decimal:4',
@@ -75,6 +79,60 @@ class ForecastRun extends Model
             return '-';
         }
 
-        return number_format(100 - (float) $this->mape, 2) . '%';
+        return number_format(max(0, 100 - (float) $this->mape), 2) . '%';
+    }
+
+    /**
+     * Kategori akurasi berdasarkan nilai MAPE (skala Lewis).
+     *
+     * @return array{label: string, tone: string}
+     */
+    public function accuracyCategory(): array
+    {
+        $mape = (float) ($this->mape ?? 0);
+
+        return match (true) {
+            $mape < 10 => ['label' => 'Sangat akurat', 'tone' => 'success'],
+            $mape < 20 => ['label' => 'Baik', 'tone' => 'info'],
+            $mape < 50 => ['label' => 'Cukup', 'tone' => 'warning'],
+            default => ['label' => 'Kurang akurat', 'tone' => 'danger'],
+        };
+    }
+
+    public function zScore(): float
+    {
+        return match (true) {
+            (float) $this->service_level >= 0.99 => 2.33,
+            (float) $this->service_level >= 0.975 => 1.96,
+            (float) $this->service_level >= 0.95 => 1.65,
+            (float) $this->service_level >= 0.90 => 1.28,
+            default => 1.04,
+        };
+    }
+
+    public function errorStandardDeviation(): float
+    {
+        $errors = $this->values()
+            ->whereNotNull('error')
+            ->pluck('error')
+            ->map(fn ($error): float => (float) $error)
+            ->all();
+
+        if (count($errors) < 2) {
+            return 0.0;
+        }
+
+        $mean = array_sum($errors) / count($errors);
+        $variance = array_sum(array_map(
+            fn (float $error): float => ($error - $mean) ** 2,
+            $errors
+        )) / (count($errors) - 1);
+
+        return sqrt($variance);
+    }
+
+    public function leadTimeWeeks(): float
+    {
+        return max(1, ((int) ($this->ingredient?->lead_time_days ?? 7)) / 7);
     }
 }

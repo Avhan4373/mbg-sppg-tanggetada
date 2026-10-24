@@ -96,6 +96,8 @@ return new class extends Migration
             $table->date('start_date');
             $table->date('end_date');
             $table->unsignedSmallInteger('horizon');
+            $table->unsignedSmallInteger('training_periods')->default(0);
+            $table->unsignedSmallInteger('validation_periods')->default(0);
             $table->decimal('alpha', 5, 4);
             $table->decimal('beta', 5, 4);
             $table->decimal('mape', 8, 4)->nullable();
